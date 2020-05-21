@@ -25,14 +25,15 @@ const regex = /<PackageReference\s*Include=\"(\S+)\"[^>]*>/gm; //查找Nuget引�
 
 function GetProjects(path: string, projects: Project[], extension: string) {
   for (const f of Deno.readDirSync(path)) {
+    let subPath=path + SEP + f.name;
     if (f.isDirectory && !f.name.startsWith(".")) {
-      GetProjects(path + SEP + f.name, projects, extension);
+      GetProjects(subPath, projects, extension);
     } else {
       if (f.isFile && f.name.endsWith(extension)) {
         projects.push(
           {
             name: f.name.replace(extension, ""),
-            loaction: path + SEP + f.name,
+            loaction: subPath,
             refProjects: [],
           },
         );
