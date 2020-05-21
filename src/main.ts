@@ -1,4 +1,4 @@
-import { log } from "./deps.ts";
+import { log, SEP } from "./deps.ts";
 
 // @deno-types="https://unpkg.com/cac/mod.d.ts"
 import { cac } from "https://unpkg.com/cac/mod.js";
@@ -26,13 +26,13 @@ const regex = /<PackageReference\s*Include=\"(\S+)\"[^>]*>/gm; //查找Nuget引�
 function GetProjects(path: string, projects: Project[], extension: string) {
   for (const f of Deno.readDirSync(path)) {
     if (f.isDirectory && !f.name.startsWith(".")) {
-      GetProjects(path + "\\" + f.name, projects, extension);
+      GetProjects(path + SEP + f.name, projects, extension);
     } else {
       if (f.isFile && f.name.endsWith(extension)) {
         projects.push(
           {
             name: f.name.replace(extension, ""),
-            loaction: path + "\\" + f.name,
+            loaction: path + SEP + f.name,
             refProjects: [],
           },
         );
