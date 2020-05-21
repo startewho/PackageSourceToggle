@@ -1,4 +1,7 @@
+import { log } from "./deps.ts";
 
+// @deno-types="https://unpkg.com/cac/mod.d.ts"
+import { cac } from "https://unpkg.com/cac/mod.js";
 
 interface Option {
   SourceDir: string;
@@ -11,9 +14,7 @@ interface Project {
   refProjects: Project[];
 }
 
-const regex = /<PackageReference\s*Include=\"(\S+)\"[^>]*>/gm;//查找Nuget引用
-
-
+const regex = /<PackageReference\s*Include=\"(\S+)\"[^>]*>/gm; //查找Nuget引用
 
 /**
  * 获取路径下符合过滤条件的项目列表
@@ -47,12 +48,10 @@ function GetProjects(path: string, projects: Project[], extension: string) {
  */
 
 function ToggleProject(current: Project, list: Project[]) {
-  let xmlFile = Deno.readTextFileSync(current.loaction);
-  let isChanged=false;
+  let xmlContent = Deno.readTextFileSync(current.loaction);
+  let isChanged = false;
   let m;
-
-  while ((m = regex.exec(xmlFile)) !== null) {
-  
+  while ((m = regex.exec(xmlContent)) !== null) {
     if (m.index === regex.lastIndex) {
       regex.lastIndex++;
     }
@@ -66,29 +65,42 @@ function ToggleProject(current: Project, list: Project[]) {
     for (const refp of current.refProjects) {
       let matches = list.filter((r) => r.name === refp.name);
       if (matches.length > 0) {
-        isChanged=true;
-        console.log(`Nuget引用${refp.loaction}, 路径引用为 ${matches[0].loaction}`);
-        xmlFile=xmlFile.replace(refp.loaction,`<ProjectReference Include="${matches[0].loaction}" />`);
+        isChanged = true;
+        log.info(`Nuget引用${refp.loaction}, 路径引用为 ${matches[0].loaction}`);
+        xmlContent = xmlContent.replace(
+          refp.loaction,
+          `<ProjectReference Include="${matches[0].loaction}" />`,
+        );
       }
     }
   }
-  if(isChanged)
-  {
-    console.log(`${current.name}需要修改的Nuget引用`);
-    Deno.writeTextFileSync(current.loaction,xmlFile);
+  if (isChanged) {
+    log.info(`${current.name}需要修改的Nuget引用`);
+    Deno.writeTextFileSync(current.loaction, xmlContent);
   }
 }
 
 function main() {
-  let option: Option = { SourceDir: Deno.cwd(), PackageDir: Deno.cwd() };
-  option.SourceDir = "D:\\Project\\ZSTGit\\NPS_Server\\NPS_Server";
-  let projects: Project[] = [];
+  let cli = cac("PackageSourceToggle");
+  cli.option("-s,--source <Dir>", "source ,Default is current path", {
+    default: Deno.cwd(),
+  });
+  cli.option("-p,--package <Dir>", "package ,Default is current path", {
+    default: Deno.cwd(),
+  });
+  cli.help();
+  cli.version("0.0.1");
+  let argOption = cli.parse().options;
+  const option: Option = {
+    PackageDir: argOption["package"],
+    SourceDir: argOption["source"],
+  };
+
+  const projects: Project[] = [];
   GetProjects(option.SourceDir, projects, ".csproj");
-  for (const p of projects) {
-    console.log(p.name + "   " + p.loaction);
-  }
   for (const p of projects) {
     ToggleProject(p, projects);
   }
 }
+
 main();
