@@ -1,6 +1,94 @@
 
 
-//Todo 
-function GetDirs(path:string) {
-    
+interface Option {
+  SourceDir: string;
+  PackageDir: string;
 }
+
+interface Project {
+  name: string;
+  loaction: string;
+  refProjects: Project[];
+}
+
+const regex = /<PackageReference\s*Include=\"(\S+)\"[^>]*>/gm;//查找Nuget引用
+
+
+
+/**
+ * 获取路径下符合过滤条件的项目列表
+ * @param path 路径
+ * @param projects 项目列表
+ * @param extension 文件扩展名过滤
+ */
+
+function GetProjects(path: string, projects: Project[], extension: string) {
+  for (const f of Deno.readDirSync(path)) {
+    if (f.isDirectory && !f.name.startsWith(".")) {
+      GetProjects(path + "\\" + f.name, projects, extension);
+    } else {
+      if (f.isFile && f.name.endsWith(extension)) {
+        projects.push(
+          {
+            name: f.name.replace(extension, ""),
+            loaction: path + "\\" + f.name,
+            refProjects: [],
+          },
+        );
+      }
+    }
+  }
+}
+
+/**
+ * 将项目Nuget引用转换为源码引用
+ * @param current 当前项目
+ * @param list 项目列表
+ */
+
+function ToggleProject(current: Project, list: Project[]) {
+  let xmlFile = Deno.readTextFileSync(current.loaction);
+  let isChanged=false;
+  let m;
+
+  while ((m = regex.exec(xmlFile)) !== null) {
+  
+    if (m.index === regex.lastIndex) {
+      regex.lastIndex++;
+    }
+    if (m.length > 1) {
+      current.refProjects.push(
+        { name: m[1], loaction: m[0], refProjects: [] },
+      );
+    }
+  }
+  if (current.refProjects.length > 0) {
+    for (const refp of current.refProjects) {
+      let matches = list.filter((r) => r.name === refp.name);
+      if (matches.length > 0) {
+        isChanged=true;
+        console.log(`Nuget引用${refp.loaction}, 路径引用为 ${matches[0].loaction}`);
+        xmlFile=xmlFile.replace(refp.loaction,`<ProjectReference Include="${matches[0].loaction}" />`);
+      }
+    }
+  }
+  if(isChanged)
+  {
+    console.log(`${current.name}需要修改的Nuget引用`);
+    Deno.writeTextFileSync(current.loaction,xmlFile);
+  }
+}
+
+function main() {
+  let option: Option = { SourceDir: Deno.cwd(), PackageDir: Deno.cwd() };
+  option.SourceDir = "D:\\Project\\ZSTGit\\NPS_Server\\NPS_Server";
+  let projects: Project[] = [];
+  GetProjects(option.SourceDir, projects, ".csproj");
+  for (const p of projects) {
+    console.log(p.name + "   " + p.loaction);
+  }
+  for (const p of projects) {
+    ToggleProject(p, projects);
+  }
+}
+main();
