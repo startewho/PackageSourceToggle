@@ -6,6 +6,7 @@ import { cac } from "https://unpkg.com/cac/mod.js";
 interface Option {
   SourceDir: string;
   PackageDir: string;
+  PackageFliter: string;
 }
 
 interface Project {
@@ -25,7 +26,7 @@ const regex = /<PackageReference\s*Include=\"(\S+)\"[^>]*>/gm; //查找Nuget引�
 
 function GetProjects(path: string, projects: Project[], extension: string) {
   for (const f of Deno.readDirSync(path)) {
-    let subPath=path + SEP + f.name;
+    let subPath = path + SEP + f.name;
     if (f.isDirectory && !f.name.startsWith(".")) {
       GetProjects(subPath, projects, extension);
     } else {
@@ -46,9 +47,10 @@ function GetProjects(path: string, projects: Project[], extension: string) {
  * 将项目Nuget引用转换为源码引用
  * @param current 当前项目
  * @param list 项目列表
+ * @param fliter 过滤条件(只有包含fliter才进行处理)
  */
 
-function ToggleProject(current: Project, list: Project[]) {
+function ToggleProject(current: Project, list: Project[], fliter: string) {
   let xmlContent = Deno.readTextFileSync(current.loaction);
   let isChanged = false;
   let m;
@@ -64,14 +66,16 @@ function ToggleProject(current: Project, list: Project[]) {
   }
   if (current.refProjects.length > 0) {
     for (const refp of current.refProjects) {
-      let matches = list.filter((r) => r.name === refp.name);
-      if (matches.length > 0) {
-        isChanged = true;
-        log.info(`Nuget引用${refp.loaction}, 路径引用为 ${matches[0].loaction}`);
-        xmlContent = xmlContent.replace(
-          refp.loaction,
-          `<ProjectReference Include="${matches[0].loaction}" />`,
-        );
+      if (refp.name.includes(fliter)||fliter.length==0) {
+        let matches = list.filter((r) => r.name === refp.name);
+        if (matches.length > 0) {
+          isChanged = true;
+          log.info(`Nuget引用${refp.loaction}, 路径引用为 ${matches[0].loaction}`);
+          xmlContent = xmlContent.replace(
+            refp.loaction,
+            `<ProjectReference Include="${matches[0].loaction}" />`,
+          );
+        }
       }
     }
   }
@@ -89,18 +93,22 @@ function main() {
   cli.option("-p,--package <Dir>", "package ,Default is current path", {
     default: Deno.cwd(),
   });
-  cli.help();
+  cli.option("-f,--fliter <Dir>", "fliter ,mathched package name will toggle", {
+    default: "",
+  });
+  cli.help(null);
   cli.version("0.0.1");
   let argOption = cli.parse().options;
   const option: Option = {
     PackageDir: argOption["package"],
     SourceDir: argOption["source"],
+    PackageFliter: argOption["fliter"],
   };
 
   const projects: Project[] = [];
   GetProjects(option.SourceDir, projects, ".csproj");
   for (const p of projects) {
-    ToggleProject(p, projects);
+    ToggleProject(p, projects, option.PackageFliter);
   }
 }
 
