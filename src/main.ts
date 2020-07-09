@@ -1,4 +1,4 @@
-import { log, SEP } from "./deps.ts";
+import { log, path} from "./deps.ts";
 
 // @deno-types="https://unpkg.com/cac/mod.d.ts"
 import { cac } from "https://unpkg.com/cac/mod.js";
@@ -24,9 +24,9 @@ const regex = /<PackageReference\s*Include=\"(\S+)\"[^>]*>/gm; //查找Nuget引�
  * @param extension 文件扩展名过滤
  */
 
-function GetProjects(path: string, projects: Project[], extension: string) {
-  for (const f of Deno.readDirSync(path)) {
-    let subPath = path + SEP + f.name;
+function GetProjects(curpath: string, projects: Project[], extension: string) {
+  for (const f of Deno.readDirSync(curpath)) {
+    let subPath = curpath + path.SEP + f.name;
     if (f.isDirectory && !f.name.startsWith(".")) {
       GetProjects(subPath, projects, extension);
     } else {
@@ -70,10 +70,15 @@ function ToggleProject(current: Project, list: Project[], fliter: string) {
         let matches = list.filter((r) => r.name === refp.name);
         if (matches.length > 0) {
           isChanged = true;
-          log.info(`Nuget引用${refp.loaction}, 路径引用为 ${matches[0].loaction}`);
+          let fromDir=path.dirname(current.loaction);
+          let toDir=path.dirname(matches[0].loaction);
+          let relativePath=path.relative(fromDir,toDir);
+          let fileName=path.basename(matches[0].loaction);
+          let relativeFileName=path.join(relativePath,fileName);
+          log.info(`Nuget引用${refp.loaction}, 路径引用为 ${matches[0].loaction} 相对路径为${relativeFileName}`);
           xmlContent = xmlContent.replace(
             refp.loaction,
-            `<ProjectReference Include="${matches[0].loaction}" />`,
+            `<ProjectReference Include="${relativeFileName}" />`,
           );
         }
       }
@@ -83,6 +88,26 @@ function ToggleProject(current: Project, list: Project[], fliter: string) {
     log.info(`${current.name}需要修改的Nuget引用`);
     Deno.writeTextFileSync(current.loaction, xmlContent);
   }
+}
+
+/**
+ * 获取相对于目标路径的相对路径
+ * @param curPath 当前路径
+ * @param targetPath 相对于路径
+ * @returns 相对路径
+ */
+function getRelaivePath(curPath:string,targetPath:string):string{
+
+  let curPathList=curPath.split("\\");
+  let targetPathList=targetPath.split("\\");
+  if(curPathList.length>0&&targetPathList.length>0)
+  {
+    //没有在一个根目录下
+    if(curPathList[0]!=targetPathList[0]) 
+    return curPath;
+  }
+
+  return "";
 }
 
 function main() {
